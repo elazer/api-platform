@@ -5,7 +5,7 @@ ARG PHP_VERSION=7.2
 ARG NGINX_VERSION=1.15
 ARG VARNISH_VERSION=6.0
 
-FROM php:${PHP_VERSION}-fpm-alpine AS api_platform_php
+FROM xlazer/docker-php-7.2.11 AS api_platform_php
 
 # persistent / runtime deps
 RUN apk add --no-cache \
