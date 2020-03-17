@@ -132,8 +132,7 @@ body {
     margin: 10px 0;
     height: 170px;
     box-sizing: border-box;
-    text-align: left;
-    width: 40%;
+    text-align:left;
 }
 
 .other__bloc:not(:last-of-type) {

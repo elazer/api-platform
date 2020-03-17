@@ -4,11 +4,10 @@ kind: Service
 metadata:
   name: varnish
   labels:
-    app.kubernetes.io/name: {{ include "name" . }}-varnish
-    app.kubernetes.io/part-of: {{ include "name" . }}
-    helm.sh/chart: {{ include "chart" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app: {{ template "name" . }}-varnish
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 spec:
   type: NodePort
   ports:
@@ -16,6 +15,6 @@ spec:
       targetPort: 80
       protocol: TCP
   selector:
-    app.kubernetes.io/name: {{ include "name" . }}-varnish
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    app: {{ template "name" . }}-varnish
+    release: {{ .Release.Name }}
 {{- end -}}

@@ -1,23 +1,21 @@
 # the different stages of this Dockerfile are meant to be built into separate images
-# https://docs.docker.com/develop/develop-images/multistage-build/#stop-at-a-specific-build-stage
 # https://docs.docker.com/compose/compose-file/#target
 
-# https://docs.docker.com/engine/reference/builder/#understand-how-arg-and-from-interact
-ARG PHP_VERSION=7.4
+ARG PHP_VERSION=7.2
+ARG NGINX_VERSION=1.15
+ARG VARNISH_VERSION=6.0
 
-# "php" stage
-FROM php:${PHP_VERSION}-fpm-alpine AS api_platform_php
+FROM xlazer/docker-php-7.2.11 AS api_platform_php
 
 # persistent / runtime deps
 RUN apk add --no-cache \
 		acl \
-		fcgi \
 		file \
 		gettext \
 		git \
 	;
 
-ARG APCU_VERSION=5.1.18
+ARG APCU_VERSION=5.1.16
 RUN set -eux; \
 	apk add --no-cache --virtual .build-deps \
 		$PHPIZE_DEPS \
@@ -27,7 +25,7 @@ RUN set -eux; \
 		zlib-dev \
 	; \
 	\
-	docker-php-ext-configure zip; \
+	docker-php-ext-configure zip --with-libzip; \
 	docker-php-ext-install -j$(nproc) \
 		intl \
 		pdo_pgsql \
@@ -53,25 +51,13 @@ RUN set -eux; \
 	apk del .build-deps
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
 RUN ln -s $PHP_INI_DIR/php.ini-production $PHP_INI_DIR/php.ini
-COPY docker/php/conf.d/api-platform.prod.ini $PHP_INI_DIR/conf.d/api-platform.ini
-
-RUN set -eux; \
-	{ \
-		echo '[www]'; \
-		echo 'ping.path = /ping'; \
-	} | tee /usr/local/etc/php-fpm.d/docker-healthcheck.conf
-
-# Workaround to allow using PHPUnit 8 with Symfony 4.3
-ENV SYMFONY_PHPUNIT_VERSION=8.3
+COPY docker/php/conf.d/api-platform.ini $PHP_INI_DIR/conf.d/api-platform.ini
 
 # https://getcomposer.org/doc/03-cli.md#composer-allow-superuser
 ENV COMPOSER_ALLOW_SUPERUSER=1
 # install Symfony Flex globally to speed up download of Composer packages (parallelized prefetching)
-RUN set -eux; \
-	composer global require "symfony/flex" --prefer-dist --no-progress --no-suggest --classmap-authoritative; \
-	composer clear-cache
+RUN composer global require "symfony/flex" --prefer-dist --no-progress --no-suggest --classmap-authoritative
 ENV PATH="${PATH}:/root/.composer/vendor/bin"
 
 WORKDIR /srv/api
@@ -81,14 +67,11 @@ ARG APP_ENV=prod
 
 # prevent the reinstallation of vendors at every changes in the source code
 COPY composer.json composer.lock symfony.lock ./
-RUN set -eux; \
-	composer install --prefer-dist --no-dev --no-scripts --no-progress --no-suggest; \
-	composer clear-cache
-
 # do not use .env files in production
-COPY .env ./
-RUN composer dump-env prod; \
-	rm .env
+RUN echo '<?php return [];' > .env.local.php
+RUN set -eux; \
+	composer install --prefer-dist --no-dev --no-autoloader --no-scripts --no-progress --no-suggest; \
+	composer clear-cache
 
 # copy only specifically what we need
 COPY bin bin/
@@ -102,11 +85,6 @@ RUN set -eux; \
 	composer run-script --no-dev post-install-cmd; \
 	chmod +x bin/console; sync
 VOLUME /srv/api/var
-
-COPY docker/php/docker-healthcheck.sh /usr/local/bin/docker-healthcheck
-RUN chmod +x /usr/local/bin/docker-healthcheck
-
-HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD ["docker-healthcheck"]
 
 COPY docker/php/docker-entrypoint.sh /usr/local/bin/docker-entrypoint
 RUN chmod +x /usr/local/bin/docker-entrypoint

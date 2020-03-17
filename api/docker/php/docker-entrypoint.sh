@@ -26,8 +26,8 @@ if [ "$1" = 'php-fpm' ] || [ "$1" = 'php' ] || [ "$1" = 'bin/console' ]; then
 		sleep 1
 	done
 
-	if ls -A src/Migrations/*.php > /dev/null 2>&1; then
-		bin/console doctrine:migrations:migrate --no-interaction
+	if [ "$APP_ENV" != 'prod' ]; then
+		bin/console doctrine:schema:update --force --no-interaction
 	fi
 fi
 
